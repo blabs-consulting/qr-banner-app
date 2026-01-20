@@ -70,11 +70,16 @@ module.exports = async (req, res) => {
       .png()
       .toBuffer();
 
-    // 4️⃣ Si overlay transparent
-    if (transparentBuffer) {
-      imageBuffer = await sharp(transparentBuffer)
-        .resize(960, 540)
-        .composite([{ input: imageBuffer, top: 0, left: 0 }])
+    // 4️⃣ **CORRECTION** : Overlay PNG AU-DESSUS (resize puis composite)
+    if (transparentBuffer && transparentBuffer.length > 0) {
+      imageBuffer = await sharp(imageBuffer)  // Image de base (fond + QR)
+        .composite([{
+          input: await sharp(transparentBuffer)
+            .resize(960, 540, { fit: 'cover' })
+            .toBuffer(),
+          top: 0,
+          left: 0
+        }])
         .png()
         .toBuffer();
     }
