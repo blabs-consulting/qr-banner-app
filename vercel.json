@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "env": {
+    "IMAGEMAGICK_VERSION": "7.1.1"
+  },
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs18.x",
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "buildCommand": "npm install",
+  "framework": "nextjs"
+}
