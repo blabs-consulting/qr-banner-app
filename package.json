@@ -1,12 +1,22 @@
+cat > package.json << 'EOF'
 {
   "name": "qr-banner-generator",
   "version": "1.0.0",
   "description": "Generate banners with QR codes on Vercel",
+  "main": "api/generate-banner.js",
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
-    "dev": "vercel dev",
-    "build": "echo 'Build complete'"
+    "build": "echo 'Build complete'",
+    "dev": "vercel dev"
   },
   "dependencies": {
-    "qrcode": "^1.5.3"
-  }
+    "qrcode": "^1.5.3",
+    "busboy": "^1.3.0"
+  },
+  "devDependencies": {},
+  "keywords": ["qr", "banner", "generator"],
+  "author": "",
+  "license": "MIT"
 }

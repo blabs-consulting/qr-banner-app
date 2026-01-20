@@ -3,19 +3,50 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const busboy = require('busboy');
 
-export default async (req, res) => {
+module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
     const tmpDir = os.tmpdir();
-    const url = req.body?.url || req.query?.url;
+    
+    // Parser FormData avec busboy
+    let url = null;
+    let transparentBuffer = null;
+
+    await new Promise((resolve, reject) => {
+      const bb = busboy({ headers: req.headers });
+      
+      bb.on('field', (fieldname, val) => {
+        if (fieldname === 'url') {
+          url = val;
+        }
+      });
+
+      bb.on('file', (fieldname, file, info) => {
+        if (fieldname === 'transparent') {
+          const chunks = [];
+          file.on('data', (data) => chunks.push(data));
+          file.on('end', () => {
+            transparentBuffer = Buffer.concat(chunks);
+          });
+        }
+      });
+
+      bb.on('close', resolve);
+      bb.on('error', reject);
+      
+      req.pipe(bb);
+    });
 
     if (!url) {
       return res.status(400).json({ error: 'URL requise' });
     }
+
+    console.log('URL reçue:', url);
 
     // Générer QR code
     const qrPath = path.join(tmpDir, `qr_${Date.now()}.png`);
@@ -37,25 +68,4 @@ export default async (req, res) => {
     const qrBgPath = path.join(tmpDir, `qr_bg_${Date.now()}.png`);
     execSync(`convert "${bgPath}" "${qrResizedPath}" -geometry +514+80 -compose Over -composite "${qrBgPath}"`);
 
-    // Lire et retourner
-    const imageBuffer = fs.readFileSync(qrBgPath);
-    const base64Image = imageBuffer.toString('base64');
-
-    // Nettoyer
-    [qrPath, qrResizedPath, bgPath, qrBgPath].forEach(f => {
-      try { fs.unlinkSync(f); } catch (e) {}
-    });
-
-    res.status(200).json({
-      success: true,
-      image: base64Image,
-      size: '960×540px'
-    });
-
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ 
-      error: `Erreur: ${error.message}` 
-    });
-  }
-};
+    let finalPath = qrBgPath;
