@@ -1,5 +1,5 @@
 const QRCode = require('qrcode');
-const { execSync } = require('child_process');
+const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -13,7 +13,7 @@ module.exports = async (req, res) => {
   try {
     const tmpDir = os.tmpdir();
     
-    // Parser FormData avec busboy
+    // Parser FormData
     let url = null;
     let transparentBuffer = null;
 
@@ -21,24 +21,19 @@ module.exports = async (req, res) => {
       const bb = busboy({ headers: req.headers });
       
       bb.on('field', (fieldname, val) => {
-        if (fieldname === 'url') {
-          url = val;
-        }
+        if (fieldname === 'url') url = val;
       });
 
       bb.on('file', (fieldname, file, info) => {
         if (fieldname === 'transparent') {
           const chunks = [];
           file.on('data', (data) => chunks.push(data));
-          file.on('end', () => {
-            transparentBuffer = Buffer.concat(chunks);
-          });
+          file.on('end', () => transparentBuffer = Buffer.concat(chunks));
         }
       });
 
       bb.on('close', resolve);
       bb.on('error', reject);
-      
       req.pipe(bb);
     });
 
@@ -46,26 +41,54 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: 'URL requise' });
     }
 
-    console.log('URL reçue:', url);
-
-    // Générer QR code
-    const qrPath = path.join(tmpDir, `qr_${Date.now()}.png`);
-    await QRCode.toFile(qrPath, url, {
-      width: 2660,
+    // 1️⃣ Générer QR code
+    const qrBuffer = await QRCode.toBuffer(url, {
+      width: 380,
       margin: 2,
       errorCorrectionLevel: 'H'
     });
 
-    // Redimensionner
-    const qrResizedPath = path.join(tmpDir, `qr_resized_${Date.now()}.png`);
-    execSync(`convert "${qrPath}" -resize 380x380 "${qrResizedPath}"`);
+    // 2️⃣ Fond blanc 960x540
+    let imageBuffer = await sharp({
+      create: {
+        width: 960,
+        height: 540,
+        channels: 4,
+        background: { r: 255, g: 255, b: 255, alpha: 1 }
+      }
+    })
+    .png()
+    .toBuffer();
 
-    // Fond blanc
-    const bgPath = path.join(tmpDir, `bg_${Date.now()}.png`);
-    execSync(`convert -size 960x540 xc:white "${bgPath}"`);
+    // 3️⃣ Placer QR à +514+80
+    imageBuffer = await sharp(imageBuffer)
+      .composite([{
+        input: qrBuffer,
+        top: 80,
+        left: 514
+      }])
+      .png()
+      .toBuffer();
 
-    // Placer QR
-    const qrBgPath = path.join(tmpDir, `qr_bg_${Date.now()}.png`);
-    execSync(`convert "${bgPath}" "${qrResizedPath}" -geometry +514+80 -compose Over -composite "${qrBgPath}"`);
+    // 4️⃣ Si overlay transparent
+    if (transparentBuffer) {
+      imageBuffer = await sharp(transparentBuffer)
+        .resize(960, 540)
+        .composite([{ input: imageBuffer, top: 0, left: 0 }])
+        .png()
+        .toBuffer();
+    }
 
-    let finalPath = qrBgPath;
+    const base64Image = imageBuffer.toString('base64');
+
+    res.json({
+      success: true,
+      image: base64Image,
+      size: '960×540px'
+    });
+
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
