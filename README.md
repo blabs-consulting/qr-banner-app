@@ -14,7 +14,7 @@ Générateur de bannières avec QR code intégré. Transforme une URL en image P
 
 ## Déploiement Rapide 🚀
 
-### Option 1 : Vercel (Recommandé - 2 min)
+### Option via Vercel
 ```bash
 # 1. Fork/clone ce repo
 git clone https://github.com/blabs-consulting/qr-banner-app.git
